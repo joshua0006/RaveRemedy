@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-black;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-[#ff00ff] via-[#ff66ff] to-[#00ffff] text-transparent bg-clip-text;
+  }
+
+  .glass-panel {
+    @apply bg-black/40 backdrop-blur-xl border border-white/20;
+  }
+
+  .hover-glow {
+    @apply hover:shadow-[0_0_30px_rgba(255,0,255,0.2)] transition-all duration-300;
+  }
+}
+
+.benefits-scroll-container,
+.ingredients-scroll-container {
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  padding: 1.5rem 0;
+}
+
+.ingredients-scroll-container {
+  pointer-events: none;
+}
+
+.benefits-scroll-content,
+.ingredients-scroll-content {
+  display: flex;
+  animation-duration: 120s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.benefits-scroll-content {
+  animation-name: benefits-scroll;
+}
+
+.ingredients-scroll-content {
+  animation-name: ingredients-scroll;
+  pointer-events: auto;
+}
+
+@keyframes benefits-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-50%)); }
+}
+
+@keyframes ingredients-scroll {
+  from { transform: translateX(calc(-50%)); }
+  to { transform: translateX(0); }
+}
+
+.benefit-card,
+.ingredient-card {
+  flex: 0 0 240px;
+  margin: 0 1rem;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dropdown styling */
+select {
+  @apply bg-black text-white border border-white/20 rounded-xl px-4 py-3;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+  padding-right: 2.5rem;
+}
+
+select option {
+  @apply bg-black text-white;
+}

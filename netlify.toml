@@ -1,0 +1,26 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "./netlify/functions"
+
+[dev]
+  command = "npm run dev"
+  port = 5173
+  targetPort = 5173
+  publish = "dist"
+  framework = "vite"
+  autoLaunch = true
+  functions = "./netlify/functions"
+
+# Forward API requests to the Netlify Functions in production
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# Handle single-page application routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
