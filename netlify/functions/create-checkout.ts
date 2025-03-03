@@ -90,27 +90,54 @@ const handler: Handler = async (event) => {
 
     const { cart } = requestBody;
 
-    // Create line items for Stripe
-    const lineItems = cart.map(item => ({
-      price_data: {
-        currency: 'aud',
-        product_data: {
-          name: item.name,
-          description: item.description || '',
-          images: Array.isArray(item.images) ? item.images : [],
-          metadata: {
-            flavor: item.flavor || ''
+    // Validate and clean up image URLs
+    const lineItems = cart.map(item => {
+      // Ensure images are valid URLs or remove them
+      let validatedImages: string[] = [];
+      if (Array.isArray(item.images)) {
+        validatedImages = item.images.filter(url => {
+          if (!url) return false;
+          try {
+            // Attempt to create a URL object to validate it
+            new URL(url);
+            return true;
+          } catch (e) {
+            console.warn(`Invalid image URL: ${url}`);
+            return false;
           }
+        });
+      }
+
+      return {
+        price_data: {
+          currency: 'aud',
+          product_data: {
+            name: item.name,
+            description: item.description || '',
+            images: validatedImages, // Use our validated images array
+            metadata: {
+              flavor: item.flavor || ''
+            }
+          },
+          unit_amount: item.unitPrice,
         },
-        unit_amount: item.unitPrice,
-      },
-      quantity: item.quantity || 1,
-    }));
+        quantity: item.quantity || 1,
+      };
+    });
 
     console.log(`Created ${lineItems.length} line items for Stripe checkout`);
 
     // Calculate if free shipping applies
     const qualifiesForFreeShipping = cart.some(item => (item.quantity || 1) >= 2);
+    
+    // Ensure we have valid URLs for success and cancel
+    // Default to the site root if URL environment variable is not set
+    const domain = process.env.URL || 'https://raveremedy.netlify.app';
+    
+    // Make sure domain doesn't have trailing slashes
+    const cleanDomain = domain.replace(/\/+$/, '');
+    
+    console.log(`Using domain for redirect URLs: ${cleanDomain}`);
     
     // Create checkout session
     console.log('Creating Stripe checkout session');
@@ -143,8 +170,8 @@ const handler: Handler = async (event) => {
           },
         },
       ],
-      success_url: `${process.env.URL || 'https://raveremedy.netlify.app'}/success`,
-      cancel_url: `${process.env.URL || 'https://raveremedy.netlify.app'}/cancel`,
+      success_url: `${cleanDomain}/success`,
+      cancel_url: `${cleanDomain}/cancel`,
       metadata: {
         cartItems: JSON.stringify(cart.map(item => ({
           name: item.name,

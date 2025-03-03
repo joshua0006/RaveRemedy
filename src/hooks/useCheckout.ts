@@ -28,10 +28,12 @@ export const useCheckout = () => {
       // Format the checkout data
       const checkoutData = { 
         cart: cart.map(item => ({
-          name: item.name,
+          name: item.name || 'Product',
           description: item.description || 'No description',
-          images: item.images || [],
-          unitPrice: item.unitPrice,
+          images: item.images && Array.isArray(item.images) 
+            ? item.images.filter(url => typeof url === 'string' && url.trim() !== '') 
+            : [],
+          unitPrice: item.unitPrice || 0,
           quantity: item.quantity || 1,
           flavor: item.flavor || 'Original'
         }))
@@ -39,16 +41,12 @@ export const useCheckout = () => {
       
       console.log('Checkout data prepared:', checkoutData);
       
-      // On Netlify's production environment, we need to use the /.netlify/functions path directly
-      // netlify.toml redirects /api/* to /.netlify/functions/:splat, but we'll use the direct path to be sure
-      const isNetlify = window.location.hostname.includes('netlify.app');
-      const apiEndpoint = isNetlify 
-        ? '/.netlify/functions/create-checkout'  // Direct function path on Netlify
-        : '/api/create-checkout';               // Redirected path for local dev
+      // Always use the direct Netlify functions path in production
+      const endpoint = '/.netlify/functions/create-checkout';
       
-      console.log(`Using ${isNetlify ? 'Netlify production' : 'local development'} endpoint: ${apiEndpoint}`);
+      console.log(`Using endpoint: ${endpoint}`);
       
-      const response = await fetch(apiEndpoint, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
