@@ -1,49 +1,55 @@
 import { Handler } from '@netlify/functions';
 import Stripe from 'stripe';
 
-// Log environment variables (remove sensitive data in production)
-console.log('Netlify function environment:');
-console.log('- STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? 
-  `Found (first 4 chars: ${process.env.STRIPE_SECRET_KEY.substring(0, 4)})` : 'Not found');
+// CORS headers to allow cross-origin requests
+const headers = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+// Log environment status for debugging
+console.log('Netlify function loaded');
+console.log('Environment check:');
 console.log('- NODE_ENV:', process.env.NODE_ENV);
+console.log('- STRIPE_SECRET_KEY present:', !!process.env.STRIPE_SECRET_KEY);
+console.log('- STRIPE_SECRET_KEY first 4 chars:', process.env.STRIPE_SECRET_KEY ? process.env.STRIPE_SECRET_KEY.substring(0, 4) : 'not found');
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.error('ERROR: STRIPE_SECRET_KEY is missing in Netlify function');
-}
-
-// Initialize Stripe with explicit API version
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16',
-});
-
-// Test Stripe connection
+// Initialize Stripe
+let stripe: Stripe;
 try {
-  console.log('Testing Stripe connection...');
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY environment variable is not set');
+  }
+  
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2023-10-16',
+  });
+  
+  // Test the Stripe connection
   stripe.charges.list({ limit: 1 })
-    .then(() => console.log('✅ Stripe connection successful!'))
-    .catch(err => console.error('❌ Stripe connection failed:', err.message));
-} catch (error) {
-  console.error('Error testing Stripe connection:', error);
+    .then(() => console.log('✓ Stripe connection successful'))
+    .catch(err => console.error('× Stripe connection failed:', err.message));
+} catch (err) {
+  console.error('Stripe initialization error:', err);
 }
 
 const handler: Handler = async (event) => {
-  // CORS headers to allow requests from any origin
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
+  console.log(`Received ${event.httpMethod} request`);
   
-  // Handle OPTIONS requests (preflight CORS)
+  // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return {
-      statusCode: 200,
+      statusCode: 204,
       headers,
       body: '',
     };
   }
-  
+
+  // Only allow POST requests
   if (event.httpMethod !== 'POST') {
+    console.log(`Method not allowed: ${event.httpMethod}`);
     return {
       statusCode: 405,
       headers,
@@ -52,22 +58,29 @@ const handler: Handler = async (event) => {
   }
 
   try {
-    console.log('Netlify function: Received checkout request');
+    console.log('Processing checkout request');
+    
+    // Verify Stripe is initialized
+    if (!stripe) {
+      throw new Error('Stripe is not initialized correctly. Check environment variables.');
+    }
     
     // Parse the request body
     if (!event.body) {
-      console.error('Netlify function: No request body received');
+      console.error('No request body provided');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'No request body' }),
+        body: JSON.stringify({ error: 'Missing request body' }),
       };
     }
     
-    const { cart } = JSON.parse(event.body);
+    // Parse and log the request (careful not to log sensitive data in production)
+    const requestBody = JSON.parse(event.body);
+    console.log(`Cart contains ${requestBody.cart?.length || 0} items`);
     
-    if (!cart || !Array.isArray(cart) || cart.length === 0) {
-      console.error('Netlify function: Invalid cart data');
+    if (!requestBody.cart || !Array.isArray(requestBody.cart) || requestBody.cart.length === 0) {
+      console.error('Invalid cart data');
       return {
         statusCode: 400,
         headers,
@@ -75,9 +88,9 @@ const handler: Handler = async (event) => {
       };
     }
 
-    console.log(`Netlify function: Processing cart with ${cart.length} items`);
+    const { cart } = requestBody;
 
-    // Create line items from cart
+    // Create line items for Stripe
     const lineItems = cart.map(item => ({
       price_data: {
         currency: 'aud',
@@ -94,12 +107,13 @@ const handler: Handler = async (event) => {
       quantity: item.quantity || 1,
     }));
 
-    // Calculate if free shipping applies (if any item has quantity >= 2)
+    console.log(`Created ${lineItems.length} line items for Stripe checkout`);
+
+    // Calculate if free shipping applies
     const qualifiesForFreeShipping = cart.some(item => (item.quantity || 1) >= 2);
     
-    console.log('Netlify function: Creating Stripe checkout session');
-    
-    // Create a checkout session
+    // Create checkout session
+    console.log('Creating Stripe checkout session');
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: lineItems,
@@ -129,8 +143,8 @@ const handler: Handler = async (event) => {
           },
         },
       ],
-      success_url: `${process.env.URL || 'http://localhost:5173'}/success`,
-      cancel_url: `${process.env.URL || 'http://localhost:5173'}/cancel`,
+      success_url: `${process.env.URL || 'https://raveremedy.netlify.app'}/success`,
+      cancel_url: `${process.env.URL || 'https://raveremedy.netlify.app'}/cancel`,
       metadata: {
         cartItems: JSON.stringify(cart.map(item => ({
           name: item.name,
@@ -146,15 +160,19 @@ const handler: Handler = async (event) => {
       billing_address_collection: 'required',
     });
 
-    console.log('Netlify function: Checkout session created:', session.id);
-
+    console.log(`Checkout session created: ${session.id}`);
+    
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ id: session.id, url: session.url }),
+      body: JSON.stringify({ 
+        id: session.id, 
+        url: session.url 
+      }),
     };
   } catch (error) {
-    console.error('Netlify function: Checkout error:', error);
+    console.error('Checkout error:', error);
+    
     return {
       statusCode: 500,
       headers,

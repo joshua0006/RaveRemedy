@@ -12,9 +12,16 @@
   autoLaunch = true
   functions = "./netlify/functions"
 
-# Forward API requests to the Netlify Functions in production
+# Forward all API requests to Netlify Functions
 [[redirects]]
   from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# Explicitly expose the Netlify Functions path
+[[redirects]]
+  from = "/.netlify/functions/*"
   to = "/.netlify/functions/:splat"
   status = 200
   force = true
@@ -24,3 +31,8 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Specify function specific settings
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["stripe"]

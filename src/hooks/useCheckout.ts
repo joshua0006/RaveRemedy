@@ -37,13 +37,16 @@ export const useCheckout = () => {
         }))
       };
       
-      console.log('Checkout data:', checkoutData);
+      console.log('Checkout data prepared:', checkoutData);
       
-      // Always use the Netlify function endpoint, which works in both development and production
-      // This ensures consistency across environments
-      const apiEndpoint = '/api/create-checkout';
+      // On Netlify's production environment, we need to use the /.netlify/functions path directly
+      // netlify.toml redirects /api/* to /.netlify/functions/:splat, but we'll use the direct path to be sure
+      const isNetlify = window.location.hostname.includes('netlify.app');
+      const apiEndpoint = isNetlify 
+        ? '/.netlify/functions/create-checkout'  // Direct function path on Netlify
+        : '/api/create-checkout';               // Redirected path for local dev
       
-      console.log('Sending checkout request to:', apiEndpoint);
+      console.log(`Using ${isNetlify ? 'Netlify production' : 'local development'} endpoint: ${apiEndpoint}`);
       
       const response = await fetch(apiEndpoint, {
         method: 'POST',
@@ -72,10 +75,9 @@ export const useCheckout = () => {
       }
       
       const data = await response.json();
-      console.log('Checkout response data received');
+      console.log('Checkout response received, redirecting to Stripe');
       
       if (data.url) {
-        console.log('Redirecting to Stripe checkout...');
         clearCart();
         window.location.href = data.url;
       } else {
